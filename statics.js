@@ -5,7 +5,7 @@ fetch("results.json")
   .then((data) => {
     // Store the data in an array
     quizResults = Array.isArray(data) ? data : Object.values(data);
-    
+
     // Call the data processing and chart creation functions after data is loaded
     processData();
   })
@@ -150,10 +150,61 @@ function processData() {
       },
     },
   });
-
-  // Top Performers
+  // Top Performers with Advanced Sorting
   const topPerformers = quizResults
-    .sort((a, b) => parseInt(b.score) - parseInt(a.score))
+    .sort((a, b) => {
+      // Parse scores
+      const scoreA = parseInt(a.score.split("/")[0].trim());
+      const scoreB = parseInt(b.score.split("/")[0].trim());
+
+      // First, compare scores (descending order)
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+
+      // Parse timer for comparison
+      const parseTimer = (timerString) => {
+        // Check if "In time"
+        if (timerString.includes("In time")) {
+          const match = timerString.match(/\((\d+)m\s*(\d+)s\)/);
+          if (match) {
+            const minutes = parseInt(match[1] || "0");
+            const seconds = parseInt(match[2]);
+            return {
+              totalSeconds: minutes * 60 + seconds,
+              isLate: false,
+            };
+          }
+        }
+
+        // Check if "Late"
+        if (timerString.includes("Late")) {
+          const match = timerString.match(/\+\s*(\d+)s/);
+          if (match) {
+            const seconds = parseInt(match[1]);
+            return {
+              totalSeconds: seconds,
+              isLate: true,
+            };
+          }
+        }
+
+        return { totalSeconds: Infinity, isLate: true };
+      };
+
+      // Parse timers
+      const timerA = parseTimer(a.formTimer);
+      const timerB = parseTimer(b.formTimer);
+
+      // If scores are the same, prioritize late submissions
+      // (meaning late submissions will be sorted after in-time submissions)
+      if (timerA.isLate !== timerB.isLate) {
+        return timerA.isLate ? 1 : -1;
+      }
+
+      // If both are in the same late/in-time category, compare total seconds
+      return timerA.totalSeconds - timerB.totalSeconds;
+    })
     .slice(0, 20);
 
   const topPerformersDiv = document.getElementById("topPerformers");
@@ -161,9 +212,9 @@ function processData() {
     const performerDiv = document.createElement("div");
     performerDiv.classList.add("performer-item");
     performerDiv.innerHTML = `
-        <strong>${index + 1}. ${performer.name}</strong>
-        <p>${performer.score}</p>
-    `;
+    <strong>${index + 1}. ${performer.name}</strong>
+    <p>Score: ${performer.score}</p>
+  `;
     topPerformersDiv.appendChild(performerDiv);
   });
 }
